@@ -1,0 +1,42 @@
+# @package _global_
+
+optimizer:
+  _target_: torch.optim.rmsprop.RMSprop
+  centered: true
+  lr: 0.0001
+
+model:
+  _target_: monet_pytorch.model.Monet
+  height: ${dataset.height}
+  width: ${dataset.width}
+  num_slots: ${dataset.max_num_objects}
+  name: monet-lightweight
+  bg_sigma: 0.10
+  fg_sigma: 0.14
+  num_blocks_unet: 5
+  channels_unet: 8
+  mlp_size_unet: 32
+  beta_kl: 0.5
+  gamma: 0.5
+  latent_size: 16
+  encoder_config:
+    channels: [16, 16, 32, 32]
+    kernels: 3
+    strides: 2
+    paddings: 0
+    input_channels: 4
+    batchnorms: true
+    bn_affines: false
+    activations: relu
+    mlp_hidden_size: 64
+    mlp_output_size: 32 # latent_size * 2
+  decoder_config:
+    w_broadcast: ${add:${dataset.width},4}
+    h_broadcast: ${add:${dataset.width},4}
+    input_channels: 18 # latent size + 2
+    channels: [16, 16, 4]  # last is 4 channels because rgb (3) + mask (1)
+    kernels: [3, 3, 1]
+    paddings: 0
+    activations: [relu, relu, null]  #null means no activation function no activation
+    batchnorms: [true, true, false]
+    bn_affines: [false, false, false]

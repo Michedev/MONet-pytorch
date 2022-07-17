@@ -1,0 +1,4 @@
+dataset:
+  width: 128
+  height: 128
+  max_num_objects: 7

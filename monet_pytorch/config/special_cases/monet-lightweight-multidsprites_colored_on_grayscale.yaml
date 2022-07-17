@@ -1,0 +1,4 @@
+# @package _global_
+model:
+  bg_std: 0.23
+  fg_std: 0.27
