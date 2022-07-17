@@ -1,5 +1,7 @@
 # Pytorch MONet implementation
 
+[![Python build package and test](https://github.com/Michedev/MONet-pytorch/actions/workflows/build-and-test.yaml/badge.svg)](https://github.com/Michedev/MONet-pytorch/actions/workflows/build-and-test.yaml)
+
 Pytorch implementation of [Multi-Object Network(MONet)](https://arxiv.org/abs/1901.11390)
 
 # How to install

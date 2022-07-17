@@ -5,10 +5,9 @@ name: Python build package and test
 
 on:
   push:
-    tags-ignore:
-      - "*"
     branches:
-      - develop
+      - master
+  workflow_dispatch:
 
 jobs:
   ci:
