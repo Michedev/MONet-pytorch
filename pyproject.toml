@@ -1,6 +1,7 @@
 [tool.poetry]
 name = "monet-pytorch"
 version = "1.0.1"
+readme = "readme.md"
 description = "Pytorch implementation of Multi-Object Network(MONet)"
 authors = ["mikedev <mik3dev@gmail.com>"]
 license = 'MIT'
