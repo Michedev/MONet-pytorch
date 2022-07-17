@@ -91,3 +91,10 @@ Lastly, you can make your custom MONet by input your custom configuration as Ome
 
     custom_monet = init_monet_custom(custom_monet)
 
+# Model performances
+
+This implementation reproduce very closely ARI MONet's values
+
+## Special thanks
+
+I would like to thank @apra and @addtt for the help to fix code bugs and to improve model performances
