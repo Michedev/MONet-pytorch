@@ -25,6 +25,7 @@ class UNet(nn.Module):
     def __init__(self, input_channels: int, num_blocks, filter_start=32, mlp_size: int = 128):
         super(UNet, self).__init__()
         c = filter_start
+        self.filter_start = filter_start
         self.mlp_size = mlp_size
         if num_blocks == 4:
             self.down = nn.ModuleList([

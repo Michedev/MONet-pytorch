@@ -9,7 +9,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from monet_pytorch.attention_net import AttentionNet
-from monet_pytorch.template.encoder_decoder import EncoderNet, BroadcastDecoderNet
+from monet_pytorch.template.encoder_decoder import BroadcastDecoderNet
 from monet_pytorch.paths import CONFIG_MODEL, CONFIG_DATASET, CONFIG_SPECIAL_CASES
 from monet_pytorch.unet import UNet
 
@@ -27,8 +27,8 @@ class Monet(nn.Module):
         num_slots: int,
         beta_kl: float,
         gamma: float,
-        encoder: Union[torch.nn.Module, EncoderNet],
-        decoder: Union[torch.nn.Module, BroadcastDecoderNet],
+        encoder: Union[torch.nn.Module, torch.nn.Sequential],
+        decoder: Union[torch.nn.Module, torch.nn.Sequential, BroadcastDecoderNet],
         unet: Union[torch.nn.Module, UNet],
         input_channels: int = 3,
         bg_sigma: float = 0.09,

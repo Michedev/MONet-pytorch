@@ -15,12 +15,13 @@ model:
   fg_sigma: 0.14
   beta_kl: 0.5
   gamma: 0.5
+  input_channels: 3
   latent_size: 16
   encoder:
     _target_: torch.nn.Sequential
     _args_:
       - _target_: monet_pytorch.template.sequential_cnn.make_sequential_cnn_from_config
-    channels: [16, 16, 32, 32]
+        channels: [16, 16, 32, 32]
         kernels: 3
         strides: 2
         paddings: 0
