@@ -8,6 +8,9 @@
 
 Pytorch implementation of [Multi-Object Network(MONet)](https://arxiv.org/abs/1901.11390)
 
+![monet_architecture](https://user-images.githubusercontent.com/12683228/179543891-11392837-a5a1-4f8d-b601-72525f208fe0.png)
+
+
 # How to install
 
 You can install through pip with the following command
