@@ -33,7 +33,7 @@ model:
       - _target_: torch.nn.Flatten
         start_dim: 1
       - _target_: torch.nn.Linear
-        in_features: 256
+        in_features: 576
         out_features: 256
       - _target_: torch.nn.ReLU
       - _target_: torch.nn.Linear
