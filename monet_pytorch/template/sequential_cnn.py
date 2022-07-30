@@ -1,5 +1,6 @@
-from typing import Union, List
+from typing import Union, List, Tuple
 
+import torch.nn
 from omegaconf import ListConfig
 from torch import nn as nn
 
@@ -15,13 +16,38 @@ def _scalars_to_list(params: dict):
     return params
 
 
-def make_sequential_from_config(input_channels: int, channels: List[int], kernels: Union[List[int], int],
-                                batchnorms: Union[List[bool], bool] = False, bn_affines: Union[List[bool], bool] = False,
-                                paddings: Union[List[int], int] = 0, strides: Union[List[int], int] = 1,
-                                activations: Union[List[ActivationFunctionEnum], ActivationFunctionEnum] = 'relu',
-                                output_paddings: Union[List[int], int] = 0, conv_transposes: Union[List[bool], bool] = False,
-                                return_params: bool = False, try_inplace_activation: bool = True,
-                                layernorms: Union[List[bool], bool] = False, ln_affines: Union[List[bool], bool] = False):
+def make_sequential_cnn_from_config(input_channels: int, channels: List[int], kernels: Union[List[int], int],
+                                    batchnorms: Union[List[bool], bool] = False, bn_affines: Union[List[bool], bool] = False,
+                                    paddings: Union[List[int], int] = 0, strides: Union[List[int], int] = 1,
+                                    activations: Union[List[ActivationFunctionEnum], ActivationFunctionEnum] = 'relu',
+                                    output_paddings: Union[List[int], int] = 0, conv_transposes: Union[List[bool], bool] = False,
+                                    return_params: bool = False, try_inplace_activation: bool = True,
+                                    layernorms: Union[List[bool], bool] = False,
+                                    ln_affines: Union[List[bool], bool] = False) -> Union[torch.nn.Sequential, Tuple[torch.nn.Sequential, dict]]:
+    """
+    Generate a sequential CNN based on input parameters. All the parameters, except for channels can be either a list
+    of values or a scalar (in such case the value will be spread to all the layers.)
+    Furthermore, this Sequential generation procedure is very suitable for yaml-based configuration.
+    Args:
+        input_channels ():
+        channels (): the output channels of each layer
+        kernels (): kernel size of each conv layer
+        batchnorms (): set true if every conv layer is followed by a batch norm layer
+        bn_affines (): set true if every batch norm layer should have learnable parameters
+        paddings (): padding of each conv layer
+        strides (): stride of each conv layer
+        activations (): activation function after the conv or batch norm layer
+        output_paddings (): output padding of each conv transpose layer. Set only if conv_trasposes[i] is true
+        conv_transposes (): set true to use Conv2dTranspose instead of Conv2d
+        return_params (): return also a dictionary containing all the configuration parameters
+        try_inplace_activation (): set true to use inplace activation with ReLU
+        layernorms (): set true to use layer norm after the conv layer.
+                       Note that batchnorms[i] and layernorms[i] cannot be both true
+        ln_affines (): set true to have learnable parameters in layernorm
+
+    Returns: the Sequential module and optionally the input parameters as dictionary
+
+    """
     params = locals()
     params = _scalars_to_list(params)
     for i in range(len(params['channels'])):

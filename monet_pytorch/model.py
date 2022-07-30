@@ -1,48 +1,60 @@
-from dataclasses import dataclass, field
+from math import prod
+from typing import Union, Literal, Optional
 
+import hydra
 import torch
 import torch.distributions as dists
+from omegaconf import DictConfig, OmegaConf
 from torch import nn
 from torch.nn import functional as F
-from math import prod
 
 from monet_pytorch.attention_net import AttentionNet
-from monet_pytorch.template.encoder_decoder import EncoderNet, BroadcastDecoderNet, EncoderConfig, DecoderConfig
+from monet_pytorch.template.encoder_decoder import EncoderNet, BroadcastDecoderNet
+from monet_pytorch.paths import CONFIG_MODEL, CONFIG_DATASET, CONFIG_SPECIAL_CASES
+from monet_pytorch.unet import UNet
 
-@dataclass(eq=False)  # for compatibility reasons
+_MODEL_CONFIG_VALUES = ['monet', 'monet-iodine', 'monet-lightweight']
+_DATASET_CONFIG_VALUES = ['clevr_6', 'multidsprites_colored_on_grayscale',
+                          'tetrominoes', 'multidsprites_colored_on_colored']
+
+
 class Monet(nn.Module):
-    width: int
-    height: int
-    latent_size: int
-    num_slots: int
-    num_blocks_unet: int
-    beta_kl: float
-    gamma: float
-
-    encoder_config: EncoderConfig
-    decoder_config: DecoderConfig
-
-    input_channels: int = 3
-    bg_sigma: float = 0.09
-    fg_sigma: float = 0.11
-
-    prior_mean: float = 0.0
-    prior_std: float = 1.0
-    
-    channels_unet: int = 32
-    mlp_size_unet: int = 128
-    # TODO this can also be monet-iodine: maybe this default can lead to bugs? Mikedev answer: yes is config is set to that value
-    name: str = 'monet'
-
-    encoder: EncoderNet = field(init=False)
-    decoder: BroadcastDecoderNet = field(init=False)
-
-    def __post_init__(self):
+    def __init__(
+        self,
+        width: int,
+        height: int,
+        latent_size: int,
+        num_slots: int,
+        beta_kl: float,
+        gamma: float,
+        encoder: Union[torch.nn.Module, EncoderNet],
+        decoder: Union[torch.nn.Module, BroadcastDecoderNet],
+        unet: Union[torch.nn.Module, UNet],
+        input_channels: int = 3,
+        bg_sigma: float = 0.09,
+        fg_sigma: float = 0.11,
+        prior_mean: float = 0.0,
+        prior_std: float = 1.0,
+        name: str = 'monet'
+    ):
         super().__init__()
-        self.attention = AttentionNet(self.input_channels, self.num_blocks_unet, self.channels_unet, self.mlp_size_unet)
-        self.encoder_config.update(width=self.width, height=self.height)
-        self.encoder = EncoderNet(**self.encoder_config)
-        self.decoder = BroadcastDecoderNet(**self.decoder_config)
+        self.width = width
+        self.height = height
+        self.latent_size = latent_size
+        self.num_slots = num_slots
+        self.beta_kl = beta_kl
+        self.gamma = gamma
+        self.encoder = encoder
+        self.decoder = decoder
+        self.unet = unet
+        self.input_channels = input_channels
+        self.bg_sigma = bg_sigma
+        self.fg_sigma = fg_sigma
+        self.prior_mean = prior_mean
+        self.prior_std = prior_std
+        self.name = name
+
+        self.attention_net = AttentionNet(self.unet)
         self.beta_orig = self.beta_kl
         self.prior_dist = dists.Normal(self.prior_mean, self.prior_std)
         self.register_buffer('lower_bound_mask', torch.FloatTensor([1e-5]))  # for backward compatibility
@@ -53,7 +65,7 @@ class Monet(nn.Module):
         log_scope = torch.zeros(scope_shape, device=x.device)
         log_masks = []
         for i in range(self.num_slots - 1):
-            log_mask, log_scope = self.attention(x, log_scope)
+            log_mask, log_scope = self.attention_net(x, log_scope)
             log_masks.append(log_mask)
         log_masks.append(log_scope)
         log_masks = torch.cat(log_masks, dim=1)
@@ -98,7 +110,6 @@ class Monet(nn.Module):
             zs[:, i, :] = z
         return kl_zs, masks_pred, neg_log_p_xs, zs
 
-
     def _calc_loss(self, kl_zs, masks, masks_pred, neg_log_p_xs):
         loss = 0.0
         neg_log_p_xs = - neg_log_p_xs.logsumexp(dim=1).mean(dim=0).sum()
@@ -140,3 +151,35 @@ class Monet(nn.Module):
         dist = dists.Normal(x_recon, sigma)
         neg_log_p_x_masked = log_mask + dist.log_prob(x)
         return neg_log_p_x_masked, x_recon, mask_pred
+
+    @classmethod
+    def from_config(cls, model: Literal['monet', 'monet-iodine', 'monet-lightweight'] = 'monet',
+               dataset: Optional[Literal['clevr_6', 'multidsprites_colored_on_grayscale',
+                                         'tetrominoes', 'multidsprites_colored_on_colored']] = None,
+               scene_max_objects: int = 5, dataset_width: int = 64, dataset_height: int = 64) -> 'Monet':
+
+        assert model in _MODEL_CONFIG_VALUES
+
+        monet_config = OmegaConf.load(CONFIG_MODEL / f'{model}.yaml')
+        if dataset is None:
+            monet_config.merge_with(OmegaConf.from_dotlist([
+                f"dataset.width={dataset_width}",
+                f"dataset.height={dataset_height}",
+                f"dataset.max_num_objects={scene_max_objects}"
+            ]))
+        else:
+            assert dataset in _DATASET_CONFIG_VALUES
+            monet_config.merge_with(OmegaConf.load(CONFIG_DATASET / f'{dataset}.yaml'))
+        if dataset is not None:
+            assert dataset in _DATASET_CONFIG_VALUES
+            special_case_path = CONFIG_SPECIAL_CASES / f'{model}-{dataset}.yaml'
+            if special_case_path.exists():
+                monet_config.merge_with(OmegaConf.load(special_case_path))
+
+        return hydra.utils.instantiate(monet_config.model)
+
+    @classmethod
+    def from_custom_config(cls, monet_config: DictConfig):
+        target = monet_config.model['_target_']
+        assert target.startswith('monet_pytorch') and target.endswith('Monet')
+        return hydra.utils.instantiate(monet_config.model)

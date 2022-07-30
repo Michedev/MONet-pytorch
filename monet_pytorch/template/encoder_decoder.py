@@ -1,56 +1,44 @@
-from dataclasses import dataclass
 from typing import List, Literal, Union, Dict
 
 import torch
 from torch import nn as nn
 from monet_pytorch.nn_utils import get_activation_module
-from monet_pytorch.template.sequential_cnn import make_sequential_from_config
+from monet_pytorch.template.sequential_cnn import make_sequential_cnn_from_config
 
 
-class EncoderConfig(Dict):
-    activation: Literal['relu', 'leakyrelu', 'elu']
-    channels: List[int]
-    batchnorms: List[bool]
-    bn_affines: List[bool]
-    kernels: List[int]
-    strides: List[int]
-    paddings: List[int]
-    mlp_hidden_size: int
-    mlp_output_size: int
-
-
-class DecoderConfig(Dict):
-    activation: Literal['relu', 'leakyrelu', 'elu']
-    channels: List[int]
-    batchnorms: List[bool]
-    bn_affines: List[bool]
-    kernels: List[int]
-    strides: List[int]
-    paddings: List[int]
-    w_broadcast: int
-    h_broadcast: int
-
-@dataclass(eq=False)
 class EncoderNet(nn.Module):
-    width: int
-    height: int
 
-    input_channels: int
-    activations: Literal['relu', 'leakyrelu', 'elu']
-    channels: List[int]
-    batchnorms: List[bool]
-    bn_affines: List[bool]
-    kernels: List[int]
-    strides: List[int]
-    paddings: List[int]
-    mlp_hidden_size: int
-    mlp_output_size: int
-
-    def __post_init__(self):
+    def __init__(
+            self,
+            width: int,
+            height: int,
+            input_channels: int,
+            activations: Literal['relu', 'leakyrelu', 'elu'],
+            channels: List[int],
+            batchnorms: List[bool],
+            bn_affines: List[bool],
+            kernels: List[int],
+            strides: List[int],
+            paddings: List[int],
+            mlp_hidden_size: int,
+            mlp_output_size: int,
+            ):
         super().__init__()
-        self.convs, params = make_sequential_from_config(self.input_channels, self.channels, self.kernels,
-                                                 self.batchnorms, self.bn_affines, self.paddings,
-                                                 self.strides, self.activations, return_params=True)
+        self.width = width
+        self.height = height
+        self.input_channels = input_channels
+        self.activations = activations
+        self.channels = channels
+        self.batchnorms = batchnorms
+        self.bn_affines = bn_affines
+        self.kernels = kernels
+        self.strides = strides
+        self.paddings = paddings
+        self.mlp_hidden_size = mlp_hidden_size
+        self.mlp_output_size = mlp_output_size
+        self.convs, params = make_sequential_cnn_from_config(self.input_channels, self.channels, self.kernels,
+                                                             self.batchnorms, self.bn_affines, self.paddings,
+                                                             self.strides, self.activations, return_params=True)
         width = self.width
         height = self.height
         for kernel, stride, padding in zip(params['kernels'], params['strides'], params['paddings']):
@@ -69,27 +57,17 @@ class EncoderNet(nn.Module):
         return x
 
 
-@dataclass(eq=False)
 class BroadcastDecoderNet(nn.Module):
-    w_broadcast: int
-    h_broadcast: int
-    input_channels: int
-    activations: List[Union[Literal['relu', 'leakyrelu', 'elu'], None]]
-    channels: List[int]
-    paddings: Union[List[int], int]
-    kernels: List[int]
-    batchnorms: List[bool] = False
-    bn_affines: List[bool] = False
-    strides: List[int] = 1
-
-    def __post_init__(self):
+    def __init__(
+            self,
+            w_broadcast: int,
+            h_broadcast: int,
+            net: Union[torch.nn.Sequential, torch.nn.Module]
+            ):
         super().__init__()
-        self.parse_w_h()
-
-        self.convs = []
-        self.convs = make_sequential_from_config(self.input_channels, self.channels, self.kernels,
-                                                 self.batchnorms, self.bn_affines, self.paddings,
-                                                 self.strides, self.activations)
+        self.w_broadcast = w_broadcast
+        self.h_broadcast = h_broadcast
+        self.net = net
 
         ys = torch.linspace(-1, 1, self.h_broadcast)
         xs = torch.linspace(-1, 1, self.w_broadcast)
@@ -97,18 +75,10 @@ class BroadcastDecoderNet(nn.Module):
         coord_map = torch.stack((ys, xs)).unsqueeze(0)
         self.register_buffer('coord_map_const', coord_map)
 
-    def parse_w_h(self):
-        if not isinstance(self.w_broadcast, int):
-            self.w_broadcast = eval(self.w_broadcast)
-            assert isinstance(self.w_broadcast, int)
-        if not isinstance(self.h_broadcast, int):
-            self.h_broadcast = eval(self.h_broadcast)
-            assert isinstance(self.h_broadcast, int)
-
     def forward(self, z):
         batch_size = z.shape[0]
         z_tiled = z.unsqueeze(-1).unsqueeze(-1).expand(batch_size, z.shape[1], self.h_broadcast, self.w_broadcast)
         coord_map = self.coord_map_const.expand(batch_size, 2, self.h_broadcast, self.w_broadcast)
         inp = torch.cat((z_tiled, coord_map), 1)
-        result = self.convs(inp)
+        result = self.net(inp)
         return result

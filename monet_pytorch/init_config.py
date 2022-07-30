@@ -23,12 +23,11 @@ def init_monet(model: Literal['monet', 'monet-iodine', 'monet-lightweight'] = 'm
 
     monet_config = OmegaConf.load(CONFIG_MODEL / f'{model}.yaml')
     if dataset is None:
-        monet_config.merge_with(OmegaConf.create(f"""
-        dataset:
-          width: {dataset_width}
-          height: {dataset_height}
-          max_num_objects: {scene_max_objects}
-          """))
+        monet_config.merge_with(OmegaConf.from_dotlist([
+            f"dataset.width: {dataset_width}",
+            f"dataset.height: {dataset_height}",
+            f"dataset.max_num_objects: {scene_max_objects}"
+        ]))
     else:
         assert dataset in _DATASET_CONFIG_VALUES
         monet_config.merge_with(OmegaConf.load(CONFIG_DATASET / f'{dataset}.yaml'))
