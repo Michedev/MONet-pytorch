@@ -33,11 +33,13 @@ def test_tetrominoes_monet_iodine():
     assert model.decoder.w_broadcast == (32 + 8)
     assert model.decoder.h_broadcast == (32 + 8)
 
+
 def test_monet_lightweight():
     model = Monet.from_config(model='monet-lightweight')
     assert model.width == 64
     assert model.num_slots == 5
     assert model.bg_sigma == 0.1
+
 
 def test_tetrominoes_monet_lightweight():
     model = Monet.from_config(model='monet-lightweight', dataset='tetrominoes')
